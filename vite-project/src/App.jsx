@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Check, Plus } from 'lucide-react';
 
-// Mock WebSocket service
 const mockWebSocket = {
   callbacks: new Set(),
-  emit(task) {
-    this.callbacks.forEach(callback => callback(task));
+  emit(action, data) {
+    this.callbacks.forEach(callback => callback(action, data));
   },
   onMessage(callback) {
     this.callbacks.add(callback);
@@ -13,7 +12,6 @@ const mockWebSocket = {
   }
 };
 
-// Task Form Component
 const TaskForm = ({ newTask, setNewTask, onSubmit }) => (
   <form onSubmit={onSubmit} className="flex gap-2 mb-6">
     <input
@@ -33,7 +31,6 @@ const TaskForm = ({ newTask, setNewTask, onSubmit }) => (
   </form>
 );
 
-// Task Item Component
 const TaskItem = ({ task, onToggle, onDelete }) => (
   <li className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
     <div className="flex items-center gap-3">
@@ -43,7 +40,7 @@ const TaskItem = ({ task, onToggle, onDelete }) => (
           task.completed ? 'bg-green-500 text-white' : 'bg-gray-200'
         }`}
       >
-        <Check size={16} />
+        <Check size={18} />
       </button>
       <span className={task.completed ? 'line-through text-gray-500' : ''}>
         {task.text}
@@ -58,14 +55,25 @@ const TaskItem = ({ task, onToggle, onDelete }) => (
   </li>
 );
 
-// Main App Component
 const TaskApp = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
 
   useEffect(() => {
-    const cleanup = mockWebSocket.onMessage((task) => {
-      setTasks(prev => [...prev, task]);
+    const cleanup = mockWebSocket.onMessage((action, data) => {
+      switch (action) {
+        case 'add':
+          setTasks(prev => [...prev, data]);
+          break;
+        case 'toggle':
+          setTasks(prev => prev.map(task =>
+            task.id === data ? { ...task, completed: !task.completed } : task
+          ));
+          break;
+        case 'delete':
+          setTasks(prev => prev.filter(task => task.id !== data));
+          break;
+      }
     });
     return cleanup;
   }, []);
@@ -80,40 +88,39 @@ const TaskApp = () => {
       completed: false
     };
     
-    mockWebSocket.emit(task);
+    mockWebSocket.emit('add', task);
     setNewTask('');
   };
 
   const toggleComplete = (id) => {
-    setTasks(prev => prev.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+    mockWebSocket.emit('toggle', id);
   };
 
   const deleteTask = (id) => {
-    setTasks(prev => prev.filter(task => task.id !== id));
+    mockWebSocket.emit('delete', id);
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">Collaborative Tasks</h1>
-      
-      <TaskForm 
-        newTask={newTask}
-        setNewTask={setNewTask}
-        onSubmit={addTask}
-      />
+    <div className="min-h-screen bg-gray-100">
+      <h1 className="text-3xl font-bold text-center py-8 bg-white shadow-sm">Collaborative Tasks</h1>
+      <div className="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg mt-8">
+        <TaskForm 
+          newTask={newTask}
+          setNewTask={setNewTask}
+          onSubmit={addTask}
+        />
 
-      <ul className="space-y-3">
-        {tasks.map(task => (
-          <TaskItem
-            key={task.id}
-            task={task}
-            onToggle={toggleComplete}
-            onDelete={deleteTask}
-          />
-        ))}
-      </ul>
+        <ul className="space-y-3">
+          {tasks.map(task => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              onToggle={toggleComplete}
+              onDelete={deleteTask}
+            />
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
